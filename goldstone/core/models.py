@@ -12,9 +12,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import sys
 
+import sys
+import ast
+from pycadf import event, cadftaxonomy
 from django.conf import settings
+from django.db import models
 from django.core.urlresolvers import reverse
 from django.db.models import CharField, IntegerField
 from django_extensions.db.fields import UUIDField, CreationDateTimeField, \
@@ -2633,3 +2636,94 @@ class Router(PolyResource):
     def resourcetype(cls):
 
         return "routers"
+
+
+class SavedSearch(models.Model):
+    """Defined searches, both system and user-created."""
+
+    # This object's Goldstone UUID.
+    uuid = UUIDField(version=1, auto=True, primary_key=True)
+
+    name = models.CharField(max_length=64)
+
+    owner = models.CharField(max_length=64)
+
+    description = models.CharField(max_length=1024, default='Defined Search')
+
+    query = models.TextField(help_text='YAML Elasticsearch query body')
+
+    protected = models.BooleanField(default=False,
+                                    help_text='True if this is system-defined')
+
+    created = CreationDateTimeField(editable=False, blank=True, null=True)
+    updated = ModificationDateTimeField(editable=True, blank=True, null=True)
+
+    @classmethod
+    def field_has_raw(cls, field):
+        """Bypass the "field has raw representation" check in
+        drfes.models.DailyIndexDocType."""
+
+        return DailyIndexDocType.field_has_raw(field=field)
+
+    @classmethod
+    def execute_query(cls, query_name):
+        """ Execute an elasticsearch query and returns the result of that query.
+        :param query: name of the stored query (Eg: sys_log_err_type_search_1)
+        :return: result of that query (rows of events matching this query)
+        """
+        print " INSIDE EXECUTE_QUERY METHOD : "
+        all_entries = SavedSearch.objects.all()
+        for i in all_entries:
+            print str(i)
+        print all_entries
+        print query_name
+        query = ast.literal_eval(SavedSearch.objects.get(name=query_name))
+        print query
+        # TBD : call bounded_search with timestamps once you add them
+        d = DailyIndexDocType()
+        queryset = d.search()
+        # queryset = DailyIndexDocType.search()
+        return queryset.query(Q(query))
+
+    def __unicode__(self):
+        """Return a useful string."""
+
+        return u'saved search UUID %s' % self.uuid
+
+    class Meta:               # pylint: disable=C0111,W0232,C1001
+        unique_together = ('name', 'owner')
+        verbose_name_plural = "saved searches"
+
+
+class EventQueryDef(SavedSearch):
+
+    """ Define an event-type based elastic search query definition """
+
+    @classmethod
+    def search_by_syslog_err_type(cls):
+        """Return syslog rows that match the passed-in syslog error.
+           For every such log returned, generate a pycadf event.
+        :param : None
+        :return: A list with event-id's of the generated events or nil
+        """
+
+        result = cls.execute_query('sys_log_err_type_search_1')
+        event_id_status_list = []
+        for i in result:
+            event_name = "event_" + str(i) + "_" + str(SavedSearch.uuid)
+            # generate a pycadf event here by calling Event() class
+            new_event = event.Event()
+            # return True/False if the document has been saved
+            d = DailyIndexDocType()
+            event_saved_flag = d.save('pycadf_event', e_instance=new_event)
+            # event_saved_flag = DailyIndexDocType.save(new_event)
+            event_dict = {new_event.id, event_saved_flag}
+            event_id_status_list.append(event_dict.copy())
+
+        return event_id_status_list
+
+
+class AlertQueryDef(SavedSearch):
+
+    """ Defines an alter-type based elastic search query definition """
+    pass
