@@ -1,12 +1,54 @@
 from elasticsearch_dsl.result import Response
+from elasticsearch_dsl import String, Date, Nested
 from rest_framework.test import APITestCase
 from goldstone.drfes.new_models import DailyIndexDocType
+import uuid
+from pycadf import event, cadftype, cadftaxonomy
 
 
 class DailyIndexDocTypeTests(APITestCase):
 
+    class CADFEvent(DailyIndexDocType):
+
+        INDEX_DATE_FMT = 'YYYY-MM-DD'
+
+        traits  = Nested(
+        properties={
+            'action': String(),
+            'eventTime': Date(),
+            'eventType': String(),
+            'id': String(),
+            'initiatorId': String(),
+            'name': String(),
+            'observerId': String(),
+            'outcome': String(),
+            'targetId': String(),
+            'typeURI': String(),
+        })
+
+        class Meta:
+            doc_type = 'cadf_event'
+            index = 'events_*'
+
+        def __init__(self, event=None, meta=None, **kwargs):
+            if event is not None:
+                kwargs = dict(
+                    kwargs.items() + self._get_traits_dict(event).items())
+
+            super(DailyIndexDocTypeTests.CADFEvent, self) \
+                .__init__(meta, **kwargs)
+
+        @staticmethod
+        def _get_traits_dict(e):
+            """
+            convert a pycadf.event to an ES doc
+            :param e:
+            :return: dict
+            """
+            return {"traits": e.as_dict()}
+
     class LogMessage(DailyIndexDocType):
-        from elasticsearch_dsl import String, Date
+
         message = String()
         timestamp = Date()
 
@@ -27,7 +69,6 @@ class DailyIndexDocTypeTests(APITestCase):
         self.assertEqual(dt._index_today(), 'logstash-' + today)
 
     def test_lifecycle(self):
-        import uuid
         import arrow
 
         # to avoid worrying about searching the raw field, let's use a lowercase
@@ -76,6 +117,64 @@ class DailyIndexDocTypeTests(APITestCase):
             .execute()
         self.assertEqual(len(slm2.hits), 0)
 
+    def test_cadf_event(self):
+        initiator_id = ''.join([c for c in str(uuid.uuid4()) if c != '-'])
+        observer_id = ''.join([c for c in str(uuid.uuid4()) if c != '-'])
+        target_id = ''.join([c for c in str(uuid.uuid4()) if c != '-'])
+
+        # create a CADF event something like (using .as_dict()):
+        # {'action': 'read',
+        #  'eventTime': '2015-12-21T18:47:50.275715+0000',
+        #  'eventType': 'activity',
+        #  'id': '2f38134e-c880-5a38-8b3e-101554a71e37',
+        #  'initiatorId': '46e4be801e0b4c2ab373b26dceedce1a',
+        #  'name': 'test event',
+        #  'observerId': 'a6b012069d174d4fbf9acee03367f068',
+        #  'outcome': 'success',
+        #  'targetId': '005343040e084c3ba90f7bac1b97e1ae',
+        #  'typeURI': 'http://schemas.dmtf.org/cloud/audit/1.0/event'}
+        e = event.Event(
+            eventType=cadftype.EVENTTYPE_ACTIVITY,
+            action=cadftaxonomy.ACTION_READ,
+            outcome=cadftaxonomy.OUTCOME_SUCCESS,
+            initiatorId=initiator_id,
+            targetId=target_id,
+            observerId=observer_id,
+            name="test event")
+
+        cadf = self.CADFEvent(event=e)
+
+        result = cadf.save()
+        self.assertTrue(result)
+
+        # force flush the index so our test has a chance to succeed.
+        cadf._doc_type.using.indices.flush(cadf.meta.index)
+
+        ge = self.CADFEvent.get(id=cadf.meta.id, index=cadf.meta.index)
+        self.assertEqual(cadf.traits['initiatorId'], ge.traits['initiatorId'])
+        self.assertEqual(cadf.traits['eventTime'], ge.traits['eventTime'])
+        self.assertIsInstance(ge, self.CADFEvent)
+
+        s = self.CADFEvent.search()
+        s = s.filter('term', ** {'traits.initiatorId': initiator_id})\
+            .execute()
+        self.assertIsInstance(s, Response)
+        self.assertEqual(len(s.hits), 1)
+
+        # let's make sure we can delete an object
+        result = cadf.delete()
+        self.assertIsNone(result)
+
+        # force flush the index so our test has a chance to succeed.
+        cadf._doc_type.using.indices.flush(cadf.meta.index)
+
+        # we should not be able to find the record now.
+        s2 = self.CADFEvent.search()
+        # Alternate form of filter/query expression since we have a nested
+        # field.
+        r2 = s2.filter('term', ** {'traits.initiatorId': initiator_id})\
+            .execute()
+        self.assertEqual(len(r2.hits), 0)
 
 
 
