@@ -28,6 +28,7 @@ machine:
     STAGE_WEB:    $DOCKER_DIR/goldstone-web
     # Docker runtime args
     COMPOSE_CONF: $DOCKER_DIR/docker-compose-ci.yml
+    GS_DEV_ENV:   $DOCKER_DIR/docker-compose-ci.yml
   # /etc/hosts
   hosts:
     gsapp: 127.0.0.1

@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM solinea/goldstone-base:0.8.3
+FROM solinea/goldstone-base:0.8.3-SNAPSHOT
 
 MAINTAINER Luke Heidecke <luke@solinea.com>
 
@@ -47,7 +47,6 @@ COPY goldstone-server/ ${APPDIR}/
 USER root
 
 RUN  su - ${APPUSER} -c '. /venv/bin/activate && pip install -r requirements.txt' \
-  && su - ${APPUSER} -c '. /venv/bin/activate && pip install -r test-requirements.txt' \
   && apt-get remove -y $buildReqs \
   && apt-get autoremove -y \
   && apt-get clean \
