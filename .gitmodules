@@ -1,6 +1,0 @@
-[submodule "goldstone/compliance"]
-	path = goldstone/compliance
-	url = git@github.com:Solinea/goldstone-compliance.git
-[submodule "desktop"]
-	path = desktop
-	url = git@github.com:Solinea/goldstone-desktop.git

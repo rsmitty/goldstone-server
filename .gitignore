@@ -1,3 +1,7 @@
+# addon modules
+/.gitmodules
+/desktop/
+
 *.py[cod]
 .ipython/
 
@@ -86,9 +90,6 @@ TAGS
 # mkdocs site
 docs/site/
 
-# addon modules
-.gitmodules
-desktop/
 
 # docker static data
 docker/goldstone-app/goldstone-server/
