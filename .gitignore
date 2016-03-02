@@ -1,6 +1,3 @@
-# addon modules
-/.gitmodules
-/desktop/
 
 *.py[cod]
 .ipython/
@@ -88,15 +85,15 @@ node_modules/
 TAGS
 
 # mkdocs site
-docs/site/
+/docs/site/
 
 
 # docker static data
-docker/goldstone-app/goldstone-server/
-docker/goldstone-app-e/goldstone-server/
-docker/goldstone-task/goldstone-server/
-docker/goldstone-web/static/
-docker/goldstone-web-e/static/
+/docker/goldstone-app/goldstone-server/
+/docker/goldstone-app-e/goldstone-server/
+/docker/goldstone-task/goldstone-server/
+/docker/goldstone-web/static/
+/docker/goldstone-web-e/static/
 
 # docker dev environment data
 .cache/
@@ -113,3 +110,8 @@ ChangeLog
 # packaging
 rpm_packaging/temp/
 rpm_packaging/pkg/
+
+# submodules
+/.gitmodules
+/desktop
+/goldstone/compliance
